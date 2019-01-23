@@ -107,7 +107,7 @@ material_page(
       width = 12,
       material_card(
         depth = 3,
-        plotOutput("crypto"),
+        tableOutput("tbl"),
         uiOutput('hide_gear')
       )
     )
