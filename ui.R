@@ -10,6 +10,8 @@
 library(shiny)
 library(shinymaterial)
 
+tag_namen <- c("Heute", "Gestern", "Vorgestern", "Vorvorgestern")
+
 # Define UI for application that draws a histogram
 # Wrap shinymaterial apps in material_page
 material_page(
@@ -76,6 +78,7 @@ material_page(
   ),
   tags$br(),
   material_row(
+    h4("Letzte Tageseinnahmen"),
     tagList(
       lapply(1:4, function(i) {
         material_column(
@@ -83,17 +86,21 @@ material_page(
           material_card(
             title = HTML(
               paste0(
-                "<span style='font-weight:bold; color:", "#9c27b0", "'>", "Interessante Zahl", "</span>&nbsp;&nbsp;",
-                "<span style='font-size:14px'>", "Hier könnte ein Hinweis stehen", "</span>"
+                "<span style='font-weight:bold; color:", "#9c27b0", "'>",
+                tag_namen[i], " (", format(Sys.Date() + 1 - i, "%A"), ")"
+                # "</span>&nbsp;&nbsp;",
+                # "<span style='font-size:14px'>", "Hier könnte ein Hinweis stehen", "</span>"
               )
             ),
             depth = 3,
             HTML(
               paste0(
                 "<div class='text-right'><span style='font-size:28px'>",
-                "+",
-                42,
-                "%"
+                uiOutput(paste0("tageseinnahmen", i)),
+                " €"
+                # "+",
+                # 42,
+                # "%"
               ),
               "</span></div>"
             )
