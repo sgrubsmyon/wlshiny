@@ -96,8 +96,7 @@ material_page(
             HTML(
               paste0(
                 "<div class='text-right'><span style='font-size:28px'>",
-                uiOutput(paste0("tageseinnahmen", i)),
-                " €"
+                uiOutput(paste0("tageseinnahmen", i))
                 # "+",
                 # 42,
                 # "%"
