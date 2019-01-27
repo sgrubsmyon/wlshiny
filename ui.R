@@ -9,9 +9,11 @@
 
 library(shiny)
 library(shinymaterial)
+library(lubridate)
 
 tagesnamen <- c("Heute", "Gestern", "Vorgestern", "Vorvorgestern")
 heute <- Sys.Date()
+heute_monatsanfang <- as.Date(paste0(substr(as.character(heute), 1, 8), "01"))
 
 # Define UI for application that draws a histogram
 # Wrap shinymaterial apps in material_page
@@ -115,7 +117,7 @@ material_page(
           material_card(
             title = HTML(paste0(
               "<span style='font-weight:bold; color:", "#9c27b0", "'>",
-              format(as.Date(paste0(substr(as.character(heute), 1, 8), "01")) - months(i - 1), "%B %Y"), "</span>"
+              format(heute_monatsanfang - months(i - 1), "%B %Y"), "</span>"
             )),
             depth = 3,
             HTML(paste0(
