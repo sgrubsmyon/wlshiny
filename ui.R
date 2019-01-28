@@ -134,6 +134,31 @@ material_page(
     )
   ),
   material_row(
+    h4("Letzte Jahreseinnahmen"),
+    tagList(
+      lapply(1:4, function(i) {
+        material_column(
+          width = 3,
+          material_card(
+            title = HTML(paste0(
+              "<span style='font-weight:bold; color:", "#9c27b0", "'>",
+              year(heute) + 1 - i, "</span>"
+            )),
+            depth = 3,
+            HTML(paste0(
+              "<div class='text-right'><span style='font-size:28px'>",
+              uiOutput(paste0("jahreseinnahmen_direkt", i)),
+              "</span></div>",
+              "<div class='text-right'><span style='font-size:28px'>",
+              uiOutput(paste0("jahreseinnahmen_vergleich", i)),
+              "</div>"
+            ))
+          )
+        )
+      })
+    )
+  ),
+  material_row(
     material_column(
       width = 12,
       material_card(

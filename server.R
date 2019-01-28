@@ -64,33 +64,21 @@ function(input, output, session) {
   
   
   ## Tageseinnahmen:
-  tageseinnahmen <- function(pool, filter_function) {
+  tageseinnahmen <- function(pool, anzahl_tage) {
     df <- pool %>% tbl("abrechnung_tag") %>%
-      filter_function() %>%
-      summarise(brutto = sum(mwst_netto) + sum(mwst_betrag)) %>% collect()
+      filter(date(zeitpunkt) == !!(heute - anzahl_tage)) %>%
+      summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
     parse_betrag(df$brutto)
   }
   
-  tagesfilter <- function(pool, anzahl_tage) {
-    filter(pool, zeitpunkt > !!(heute - anzahl_tage) &
-             zeitpunkt < !!(heute - (anzahl_tage - 1)))
-  }
-  
-  heute_filter <- function(pool) { tagesfilter(pool, 0) }
-  gestern_filter <- function(pool) { tagesfilter(pool, 1) }
-  vorgestern_filter <- function(pool) { tagesfilter(pool, 2) }
-  vorvorgestern_filter <- function(pool) { tagesfilter(pool, 3) }
-  heute_vor_einer_woche_filter <- function(pool) { tagesfilter(pool, 7) }
-  gestern_vor_einer_woche_filter <- function(pool) { tagesfilter(pool, 8) }
-  vorgestern_vor_einer_woche_filter <- function(pool) { tagesfilter(pool, 9) }
-  vorvorgestern_vor_einer_woche_filter <- function(pool) { tagesfilter(pool, 10) }
-  
   tageseinnahmen_live <- function(pool) {
     # SELECT SUM(ges_preis) FROM kasse.verkauf_details INNER JOIN kasse.verkauf USING (rechnungs_nr) WHERE DATE(verkaufsdatum) = '2019-01-21';
+    max_zp <- (pool %>% tbl("abrechnung_tag") %>%
+      summarise(zp = max(zeitpunkt_real, na.rm = TRUE)) %>% collect())$zp
     df <- pool %>% tbl("verkauf_details") %>%
       inner_join(tbl(pool, "verkauf"), by = "rechnungs_nr") %>%
-      filter(date(verkaufsdatum) == heute) %>%
-      summarise(brutto = sum(ges_preis)) %>% collect()
+      filter(verkaufsdatum > max_zp & date(verkaufsdatum) <= heute) %>%
+      summarise(brutto = sum(ges_preis, na.rm = TRUE)) %>% collect()
     parse_betrag(df$brutto)
   }
   
@@ -98,63 +86,49 @@ function(input, output, session) {
     einnahmen_vergleich(dir, vgl, vgl_name = "Vorwoche")
   }
   
-  output$tageseinnahmen_direkt1 <- renderUI({
-    te <- tageseinnahmen(pool, heute_filter)
-    if (te == 0) {
-      te <- tageseinnahmen_live(pool)
-    }
-    geldformat(te)
-  })
-  output$tageseinnahmen_direkt2 <- renderUI({ geldformat(tageseinnahmen(pool, gestern_filter)) })
-  output$tageseinnahmen_direkt3 <- renderUI({ geldformat(tageseinnahmen(pool, vorgestern_filter)) })
-  output$tageseinnahmen_direkt4 <- renderUI({ geldformat(tageseinnahmen(pool, vorvorgestern_filter)) })
+  output$tageseinnahmen_direkt1 <- renderUI({ geldformat(tageseinnahmen(pool, 0) + tageseinnahmen_live(pool)) })
+  output$tageseinnahmen_direkt2 <- renderUI({ geldformat(tageseinnahmen(pool, 1)) })
+  output$tageseinnahmen_direkt3 <- renderUI({ geldformat(tageseinnahmen(pool, 2)) })
+  output$tageseinnahmen_direkt4 <- renderUI({ geldformat(tageseinnahmen(pool, 3)) })
   output$tageseinnahmen_vergleich1 <- renderUI({
-    dir <- tageseinnahmen(pool, heute_filter)
-    if (dir == 0) {
-      dir <- tageseinnahmen_live(pool)
-    }
-    vgl <- tageseinnahmen(pool, heute_vor_einer_woche_filter)
-    tageseinnahmen_vergleich(dir, vgl)
+    tageseinnahmen_vergleich(tageseinnahmen(pool, 0) + tageseinnahmen_live(pool),
+                             tageseinnahmen(pool, 7))
   })
   output$tageseinnahmen_vergleich2 <- renderUI({
-    tageseinnahmen_vergleich(tageseinnahmen(pool, gestern_filter),
-                             tageseinnahmen(pool, gestern_vor_einer_woche_filter))
+    tageseinnahmen_vergleich(tageseinnahmen(pool, 1),
+                             tageseinnahmen(pool, 8))
   })
   output$tageseinnahmen_vergleich3 <- renderUI({
-    tageseinnahmen_vergleich(tageseinnahmen(pool, vorgestern_filter),
-                             tageseinnahmen(pool, vorgestern_vor_einer_woche_filter))
+    tageseinnahmen_vergleich(tageseinnahmen(pool, 2),
+                             tageseinnahmen(pool, 9))
   })
   output$tageseinnahmen_vergleich4 <- renderUI({
-    tageseinnahmen_vergleich(tageseinnahmen(pool, vorvorgestern_filter),
-                             tageseinnahmen(pool, vorvorgestern_vor_einer_woche_filter))
+    tageseinnahmen_vergleich(tageseinnahmen(pool, 3),
+                             tageseinnahmen(pool, 10))
   })
   
   
   ## Monatseinnahmen:
   monatseinnahmen <- function(pool, anzahl_monate) {
     df <- pool %>% tbl("abrechnung_monat") %>%
-      monatsfilter(anzahl_monate) %>%
-      summarise(brutto = sum(mwst_netto) + sum(mwst_betrag)) %>% collect()
+      filter(monat == !!(heute_monatsanfang - months(anzahl_monate))) %>%
+      summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
     parse_betrag(df$brutto)
-  }
-  
-  monatsfilter <- function(pool, anzahl_monate) {
-    filter(pool, monat == !!(heute_monatsanfang - months(anzahl_monate)))
   }
   
   monatseinnahmen_live <- function(pool) {
     # SELECT SUM(mwst_netto) + SUM(mwst_betrag) FROM kasse.abrechnung_tag WHERE YEAR(zeitpunkt) = 2019 AND MONTH(zeitpunkt) = 1;
     df <- pool %>% tbl("abrechnung_tag") %>%
-      filter(year(zeitpunkt) == year(heute) & month(zeitpunkt) == month(heute)) %>%
-      summarise(brutto = sum(mwst_netto) + sum(mwst_betrag)) %>% collect()
-    parse_betrag(df$brutto)
+      filter(zeitpunkt > heute_monatsanfang & zeitpunkt < !!(heute + 1)) %>%
+      summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
+    parse_betrag(df$brutto) + tageseinnahmen_live(pool)
   }
   
   monatseinnahmen_vorjahr_live <- function(pool) {
     df <- pool %>% tbl("abrechnung_tag") %>%
       filter(zeitpunkt > !!(heute_monatsanfang - years(1)) &
                zeitpunkt < !!(heute - years(1) + 1)) %>%
-      summarise(brutto = sum(mwst_netto) + sum(mwst_betrag)) %>% collect()
+      summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
     parse_betrag(df$brutto)
   }
   
@@ -187,5 +161,59 @@ function(input, output, session) {
   })
   output$monatseinnahmen_vergleich4 <- renderUI({
     monatseinnahmen_vergleich(monatseinnahmen(pool, 3), monatseinnahmen(pool, 15))
+  })
+  
+  
+  ## Jahreseinnahmen:
+  jahreseinnahmen <- function(pool, anzahl_jahre) {
+    df <- pool %>% tbl("abrechnung_jahr") %>%
+      filter(jahr == (year(heute) - anzahl_jahre)) %>%
+      summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
+    parse_betrag(df$brutto)
+  }
+  
+  jahreseinnahmen_live <- function(pool) {
+    df <- pool %>% tbl("abrechnung_monat") %>%
+      filter(year(monat) == year(heute) & monat < heute_monatsanfang) %>%
+      summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
+    parse_betrag(df$brutto) + monatseinnahmen_live(pool)
+  }
+  
+  jahreseinnahmen_vorjahr_live <- function(pool) {
+    df <- pool %>% tbl("abrechnung_monat") %>%
+      filter(year(monat) == (year(heute) - 1) & monat < !!(heute_monatsanfang - years(1))) %>%
+      summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
+    parse_betrag(df$brutto) + monatseinnahmen_vorjahr_live(pool)
+  }
+  
+  jahreseinnahmen_vergleich <- function(dir, vgl) {
+    einnahmen_vergleich(dir, vgl, vgl_name = "Vorjahr")
+  }
+  
+  output$jahreseinnahmen_direkt1 <- renderUI({
+    HTML(paste0(
+      geldformat(jahreseinnahmen_live(pool)),
+      " <span style='font-size:14px'>bis zum ",
+      format(heute, "%d.%m."),
+      "</span>"
+    ))
+  })
+  output$jahreseinnahmen_direkt2 <- renderUI({ geldformat(jahreseinnahmen(pool, 1)) })
+  output$jahreseinnahmen_direkt3 <- renderUI({ geldformat(jahreseinnahmen(pool, 2)) })
+  output$jahreseinnahmen_direkt4 <- renderUI({ geldformat(jahreseinnahmen(pool, 3)) })
+  output$jahreseinnahmen_vergleich1 <- renderUI({
+    einnahmen_vergleich(
+      jahreseinnahmen_live(pool), jahreseinnahmen_vorjahr_live(pool),
+      paste0("Vorjahr bis zum ", format(heute, "%d.%m."))
+    )
+  })
+  output$jahreseinnahmen_vergleich2 <- renderUI({
+    jahreseinnahmen_vergleich(jahreseinnahmen(pool, 1), jahreseinnahmen(pool, 2))
+  })
+  output$jahreseinnahmen_vergleich3 <- renderUI({
+    jahreseinnahmen_vergleich(jahreseinnahmen(pool, 2), jahreseinnahmen(pool, 3))
+  })
+  output$jahreseinnahmen_vergleich4 <- renderUI({
+    jahreseinnahmen_vergleich(jahreseinnahmen(pool, 3), jahreseinnahmen(pool, 4))
   })
 }
