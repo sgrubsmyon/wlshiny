@@ -19,6 +19,11 @@ onStop(function() {
   poolClose(pool)
 })
 
+produktgruppen <- (
+  pool %>% tbl("produktgruppe") %>% filter(!is.na(toplevel_id)) %>%
+    select(produktgruppen_name) %>% collect()
+)$produktgruppen_name
+
 geldformat <- function(betrag) {
   sprintf("%s €", format(betrag, nsmall = 2, big.mark = ".", decimal.mark = ","))
 }
@@ -216,4 +221,15 @@ function(input, output, session) {
   output$jahreseinnahmen_vergleich4 <- renderUI({
     jahreseinnahmen_vergleich(jahreseinnahmen(pool, 3), jahreseinnahmen(pool, 4))
   })
+  
+  output$produktgruppen_div <- renderUI({
+    material_dropdown(
+      "produktgruppen",
+      "Wähle eine Produktgruppe",
+      produktgruppen,
+      "Sonstiges",
+      FALSE
+    )
+  })
+  
 }

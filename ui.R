@@ -29,7 +29,7 @@ material_page(
     material_side_nav_tabs(
       side_nav_tabs = c(
         "Übersicht Einnahmen" = "einnahmen",
-        "Verkaufstabellen" = "verkauf"
+        "Verkaufsstatistik" = "verkauf"
       ),
       icons = c("dashboard", "dehaze")
     )
@@ -194,7 +194,7 @@ material_page(
     )
   ),
   material_side_nav_tab_content(
-    side_nav_tab_id = "einnahmen",
-    div()
+    side_nav_tab_id = "verkauf",
+    uiOutput("produktgruppen_div")
   )
 )
