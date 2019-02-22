@@ -19,10 +19,15 @@ onStop(function() {
   poolClose(pool)
 })
 
-produktgruppen <- (
-  pool %>% tbl("produktgruppe") %>% filter(!is.na(toplevel_id)) %>%
-    select(produktgruppen_name) %>% collect()
-)$produktgruppen_name
+produktgruppen <- {
+  p <- pool %>% tbl("produktgruppe") %>% filter(!is.na(toplevel_id) && aktiv) %>%
+    select(produktgruppen_id, toplevel_id, sub_id, subsub_id, produktgruppen_name) %>% collect()
+  sub_fill <- sapply(p$sub_id, function(sid) if (!is.na(sid)) " " else "")
+  subsub_fill <- sapply(p$subsub_id, function(sid) if (!is.na(sid)) " " else "")
+  ps <- as.list(p$produktgruppen_id)
+  names(ps) <- paste0(sub_fill, subsub_fill, iconv(p$produktgruppen_name, from = "ISO-8859-1", to = "UTF-8"))
+  ps
+}
 
 geldformat <- function(betrag) {
   sprintf("%s €", format(betrag, nsmall = 2, big.mark = ".", decimal.mark = ","))
@@ -223,12 +228,24 @@ function(input, output, session) {
   })
   
   output$produktgruppen_div <- renderUI({
-    material_dropdown(
-      "produktgruppen",
-      "Wähle eine Produktgruppe",
-      produktgruppen,
-      "Sonstiges",
-      FALSE
+    tagList(
+      # Material design list dropdown not so nice, because one cannot search for items:
+      # material_dropdown(
+      #   "produktgruppen",
+      #   "Wähle eine Produktgruppe",
+      #   # produktgruppen,
+      #   choices = produktgruppen,
+      #   selected = "Sonstiges",
+      #   multiple = FALSE
+      # ),
+      selectInput(
+        "produktgruppen",
+        "Wähle eine Produktgruppe",
+        # produktgruppen,
+        choices = produktgruppen,
+        selected = "Sonstiges",
+        multiple = FALSE
+      )
     )
   })
   
