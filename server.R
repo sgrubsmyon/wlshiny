@@ -19,13 +19,15 @@ onStop(function() {
   poolClose(pool)
 })
 
+enc_conv <- function(string) iconv(string, from = "ISO-8859-1", to = "UTF-8")
+
 produktgruppen <- {
   p <- pool %>% tbl("produktgruppe") %>% filter(!is.na(toplevel_id) && aktiv) %>%
     select(produktgruppen_id, toplevel_id, sub_id, subsub_id, produktgruppen_name) %>% collect()
   sub_fill <- sapply(p$sub_id, function(sid) if (!is.na(sid)) " " else "")
   subsub_fill <- sapply(p$subsub_id, function(sid) if (!is.na(sid)) " " else "")
   ps <- as.list(p$produktgruppen_id)
-  names(ps) <- paste0(sub_fill, subsub_fill, iconv(p$produktgruppen_name, from = "ISO-8859-1", to = "UTF-8"))
+  names(ps) <- paste0(sub_fill, subsub_fill, enc_conv(p$produktgruppen_name))
   ps
 }
 
@@ -173,7 +175,6 @@ function(input, output, session) {
     monatseinnahmen_vergleich(monatseinnahmen(pool, 3), monatseinnahmen(pool, 15))
   })
   
-  
   ## Jahreseinnahmen:
   jahreseinnahmen <- function(pool, anzahl_jahre) {
     df <- pool %>% tbl("abrechnung_jahr") %>%
@@ -228,25 +229,111 @@ function(input, output, session) {
   })
   
   output$produktgruppen_div <- renderUI({
-    tagList(
+    material_row(
       # Material design list dropdown not so nice, because one cannot search for items:
       # material_dropdown(
-      #   "produktgruppen",
+      #   "prod_group",
       #   "Wähle eine Produktgruppe",
       #   # produktgruppen,
       #   choices = produktgruppen,
-      #   selected = "Sonstiges",
+      #   selected = NULL,
       #   multiple = FALSE
       # ),
-      selectInput(
-        "produktgruppen",
-        "Wähle eine Produktgruppe",
-        # produktgruppen,
-        choices = produktgruppen,
-        selected = "Sonstiges",
-        multiple = FALSE
-      )
+      material_column(
+        width = 4,
+        selectInput(
+          "prod_group",
+          "Wähle eine Produktgruppe",
+          # produktgruppen,
+          choices = produktgruppen,
+          selected = "Kunsthandwerk",
+          multiple = FALSE,
+          width = "100%"
+        )
+      ),
+      material_column(
+        width = 4,
+        material_switch("include_subgroups", "Untergruppen einschließen?",
+                        off_label = "Nein", on_label = "Ja", initial_value = TRUE)
+      ),
+      {
+        min_zp <- (pool %>% tbl("verkauf") %>%
+                     summarise(zp = date(min(verkaufsdatum, na.rm = TRUE))) %>% collect())$zp  
+        material_column(
+          width = 4,
+          # material_date_picker("start", "Wähle einen Zeitraum"),
+          # " - ",
+          # material_date_picker("end", "")
+          dateRangeInput("timerange", label = "Wähle einen Zeitraum",
+                         start = Sys.Date() - 14, end = Sys.Date(),
+                         min = min_zp, max = Sys.Date(),
+                         separator = " - ", format = "dd.mm.yyyy",
+                         language = "de", weekstart = 1,
+                         width = "100%")
+        )
+      }
     )
   })
   
+  selected_prod_group_ids <- reactive({
+    prod_ids <- input$prod_group
+    if (req(input$include_subgroups)) {
+      ids <- pool %>% tbl("produktgruppe") %>%
+        filter(produktgruppen_id == prod_ids) %>%
+        select(toplevel_id, sub_id, subsub_id) %>% collect()
+      if (is.na(ids$sub_id)) {
+        prod_ids <- c(
+          prod_ids,
+          (pool %>% tbl("produktgruppe") %>%
+             filter(toplevel_id == ids$toplevel_id) %>%
+             select(produktgruppen_id) %>% collect())$produktgruppen_id
+        )
+      } else if (is.na(ids$subsub_id)) {
+        prod_ids <- c(
+          prod_ids,
+          (pool %>% tbl("produktgruppe") %>%
+             filter(sub_id == ids$sub_id) %>%
+             select(produktgruppen_id) %>% collect())$produktgruppen_id
+        )
+      }
+    }
+    return(unique(prod_ids))
+  })
+  
+  observe({
+    print(selected_prod_group_ids())
+  })
+  
+  output$verkaufstabelle <- renderDataTable({
+    # pool %>% tbl("verkauf_details") %>%
+    #   inner_join(tbl(pool, "verkauf"), by = "rechnungs_nr") %>%
+    #   inner_join(tbl(pool, "artikel"), by = "artikel_id") %>%
+    #   filter(verkaufsdatum >= input$timerange[1] &
+    #            verkaufsdatum <= input$timerange[2] &
+    #            produktgruppen_id %in% selected_prod_group_ids())
+    df <- pool %>% tbl("verkauf_details") %>%
+      inner_join(tbl(pool, "verkauf"), by = "rechnungs_nr") %>%
+      inner_join(tbl(pool, "artikel"), by = "artikel_id") %>%
+      inner_join(tbl(pool, "lieferant"), by = "lieferant_id") %>%
+      filter(verkaufsdatum >= input$timerange[1] &
+               verkaufsdatum <= input$timerange[2] &
+               produktgruppen_id %in% c(18, 19, 20)) %>%
+      group_by(lieferant_id, lieferant_name, artikel_nr) %>%
+      summarise(umsatz_stueck = sum(stueckzahl, na.rm = TRUE),
+                umsatz_geld = sum(ges_preis, na.rm = TRUE)) %>%
+      arrange(desc(umsatz_stueck)) %>% collect()
+    df$artikel_name <- sapply(seq_len(nrow(df)), function(i)
+      (pool %>% tbl("artikel") %>%
+         filter(lieferant_id == df$lieferant_id[i] && artikel_nr == df$artikel_nr[i]) %>%
+         arrange(desc(artikel_id)) %>% select(artikel_name) %>% head(1) %>% collect())$artikel_name)
+    df <- select(
+      df,
+      Lieferant = lieferant_name, `Art.-Nr.` = artikel_nr,
+      Bezeichnung = artikel_name,
+      `Umsatz (Stückzahl)` = umsatz_stueck, `Umsatz (Euro)` = umsatz_geld
+    )
+    df$lieferant_name <- enc_conv(df$lieferant_name)
+    df$artikel_name <- enc_conv(df$artikel_name)
+    df
+  })
 }

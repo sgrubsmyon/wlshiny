@@ -26,6 +26,7 @@ material_page(
     fixed = TRUE,
     image_source = "Weltladen_Logo.png",
     span(style = "display: none;", icon("caret-up")), # load the fontawesome icons dependencies
+    includeCSS("www/style.css"),
     material_side_nav_tabs(
       side_nav_tabs = c(
         "Übersicht Einnahmen" = "einnahmen",
@@ -195,6 +196,12 @@ material_page(
   ),
   material_side_nav_tab_content(
     side_nav_tab_id = "verkauf",
-    uiOutput("produktgruppen_div")
+    uiOutput("produktgruppen_div"),
+    # material_row(
+    #   material_column(
+    #     width = 12,
+    #   )
+    # )
+    dataTableOutput("verkaufstabelle")
   )
 )
