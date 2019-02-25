@@ -26,15 +26,13 @@ onStop(function() {
   poolClose(pool)
 })
 
-enc_conv <- function(string) iconv(string, from = "ISO-8859-1", to = "UTF-8")
-
 produktgruppen <- {
   p <- pool %>% tbl("produktgruppe") %>% filter(!is.na(toplevel_id) && aktiv) %>%
     select(produktgruppen_id, toplevel_id, sub_id, subsub_id, produktgruppen_name) %>% collect()
   sub_fill <- sapply(p$sub_id, function(sid) if (!is.na(sid)) " " else "")
   subsub_fill <- sapply(p$subsub_id, function(sid) if (!is.na(sid)) " " else "")
   ps <- as.list(p$produktgruppen_id)
-  names(ps) <- paste0(sub_fill, subsub_fill, p$produktgruppen_name) # enc_conv(p$produktgruppen_name)
+  names(ps) <- paste0(sub_fill, subsub_fill, p$produktgruppen_name)
   ps
 }
 
@@ -333,12 +331,6 @@ function(input, output, session) {
       (pool %>% tbl("artikel") %>%
          filter(lieferant_id == df$lieferant_id[i] && artikel_nr == df$artikel_nr[i]) %>%
          arrange(desc(artikel_id)) %>% select(artikel_name) %>% head(1) %>% collect())$artikel_name)
-    # Fix encoding:
-    # tmp <- tempfile("df_", fileext = ".csv")
-    # readr::write_csv(df, tmp, fileEncoding = "UTF-8")
-    # df$lieferant_name <- enc_conv(df$lieferant_name)
-    # df$artikel_name <- enc_conv(df$artikel_name)
-    # Select and rename the relevant rows:
     df <- select(
       df,
       Lieferant = lieferant_name, `Art.-Nr.` = artikel_nr,
