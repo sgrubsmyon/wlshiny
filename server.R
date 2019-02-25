@@ -5,6 +5,8 @@ library(RMySQL)
 library(pool)
 library(dplyr)
 library(lubridate)
+library(readr)
+library(DT)
 
 dbsetup <- jsonlite::read_json("~/.dbsetup.json")
 
@@ -15,6 +17,11 @@ pool <- dbPool(
   username = dbsetup$kasse$user,
   password = dbsetup$kasse$pass
 )
+
+conn <- poolCheckout(pool)
+dbSendQuery(conn, "SET NAMES utf8")
+poolReturn(conn)
+
 onStop(function() {
   poolClose(pool)
 })
@@ -27,7 +34,7 @@ produktgruppen <- {
   sub_fill <- sapply(p$sub_id, function(sid) if (!is.na(sid)) " " else "")
   subsub_fill <- sapply(p$subsub_id, function(sid) if (!is.na(sid)) " " else "")
   ps <- as.list(p$produktgruppen_id)
-  names(ps) <- paste0(sub_fill, subsub_fill, enc_conv(p$produktgruppen_name))
+  names(ps) <- paste0(sub_fill, subsub_fill, p$produktgruppen_name) # enc_conv(p$produktgruppen_name)
   ps
 }
 
@@ -297,14 +304,14 @@ function(input, output, session) {
         )
       }
     }
-    return(unique(prod_ids))
+    return(unique(as.integer(prod_ids)))
   })
   
   observe({
     print(selected_prod_group_ids())
   })
   
-  output$verkaufstabelle <- renderDataTable({
+  output$verkaufstabelle <- DT::renderDataTable({
     # pool %>% tbl("verkauf_details") %>%
     #   inner_join(tbl(pool, "verkauf"), by = "rechnungs_nr") %>%
     #   inner_join(tbl(pool, "artikel"), by = "artikel_id") %>%
@@ -317,7 +324,7 @@ function(input, output, session) {
       inner_join(tbl(pool, "lieferant"), by = "lieferant_id") %>%
       filter(verkaufsdatum >= input$timerange[1] &
                verkaufsdatum <= input$timerange[2] &
-               produktgruppen_id %in% c(18, 19, 20)) %>%
+               produktgruppen_id %in% !!(selected_prod_group_ids())) %>% # c(18, 19, 20)
       group_by(lieferant_id, lieferant_name, artikel_nr) %>%
       summarise(umsatz_stueck = sum(stueckzahl, na.rm = TRUE),
                 umsatz_geld = sum(ges_preis, na.rm = TRUE)) %>%
@@ -326,14 +333,18 @@ function(input, output, session) {
       (pool %>% tbl("artikel") %>%
          filter(lieferant_id == df$lieferant_id[i] && artikel_nr == df$artikel_nr[i]) %>%
          arrange(desc(artikel_id)) %>% select(artikel_name) %>% head(1) %>% collect())$artikel_name)
+    # Fix encoding:
+    # tmp <- tempfile("df_", fileext = ".csv")
+    # readr::write_csv(df, tmp, fileEncoding = "UTF-8")
+    # df$lieferant_name <- enc_conv(df$lieferant_name)
+    # df$artikel_name <- enc_conv(df$artikel_name)
+    # Select and rename the relevant rows:
     df <- select(
       df,
       Lieferant = lieferant_name, `Art.-Nr.` = artikel_nr,
       Bezeichnung = artikel_name,
       `Umsatz (Stückzahl)` = umsatz_stueck, `Umsatz (Euro)` = umsatz_geld
     )
-    df$lieferant_name <- enc_conv(df$lieferant_name)
-    df$artikel_name <- enc_conv(df$artikel_name)
     df
   })
 }

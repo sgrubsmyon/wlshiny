@@ -10,6 +10,7 @@
 library(shiny)
 library(shinymaterial)
 library(lubridate)
+library(DT)
 
 tagesnamen <- c("Heute", "Gestern", "Vorgestern", "Vorvorgestern")
 heute <- Sys.Date()
@@ -202,6 +203,6 @@ material_page(
     #     width = 12,
     #   )
     # )
-    dataTableOutput("verkaufstabelle")
+    DT::dataTableOutput("verkaufstabelle")
   )
 )
