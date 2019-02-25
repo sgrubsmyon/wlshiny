@@ -1,7 +1,8 @@
 library(shiny)
 library(shinymaterial)
 library(jsonlite)
-library(RMySQL)
+# library(RMySQL)
+library(RMariaDB)
 library(pool)
 library(dplyr)
 library(lubridate)
@@ -11,16 +12,18 @@ library(DT)
 dbsetup <- jsonlite::read_json("~/.dbsetup.json")
 
 pool <- dbPool(
-  drv = RMySQL::MySQL(),
+  # drv = RMySQL::MySQL(),
+  drv = RMariaDB::MariaDB(),
   host = dbsetup$kasse$host,
   dbname = dbsetup$kasse$db,
   username = dbsetup$kasse$user,
   password = dbsetup$kasse$pass
 )
 
-conn <- poolCheckout(pool)
-dbSendQuery(conn, "SET NAMES utf8")
-poolReturn(conn)
+# Needed only for MySQL, not MariaDB:
+# conn <- poolCheckout(pool)
+# dbSendQuery(conn, "SET NAMES utf8")
+# poolReturn(conn)
 
 onStop(function() {
   poolClose(pool)
@@ -281,8 +284,8 @@ function(input, output, session) {
   })
   
   selected_prod_group_ids <- reactive({
-    prod_ids <- input$prod_group
-    if (req(input$include_subgroups)) {
+    prod_ids <- as.integer(input$prod_group)
+    if (!is.null(input$include_subgroups) && input$include_subgroups) {
       ids <- pool %>% tbl("produktgruppe") %>%
         filter(produktgruppen_id == prod_ids) %>%
         select(toplevel_id, sub_id, subsub_id) %>% collect()
@@ -297,7 +300,7 @@ function(input, output, session) {
         prod_ids <- c(
           prod_ids,
           (pool %>% tbl("produktgruppe") %>%
-             filter(sub_id == ids$sub_id) %>%
+             filter(toplevel_id == ids$toplevel_id & sub_id == ids$sub_id) %>%
              select(produktgruppen_id) %>% collect())$produktgruppen_id
         )
       }
@@ -305,24 +308,15 @@ function(input, output, session) {
     return(unique(as.integer(prod_ids)))
   })
   
-  observe({
-    print(selected_prod_group_ids())
-  })
-  
   output$verkaufstabelle <- DT::renderDataTable({
-    # pool %>% tbl("verkauf_details") %>%
-    #   inner_join(tbl(pool, "verkauf"), by = "rechnungs_nr") %>%
-    #   inner_join(tbl(pool, "artikel"), by = "artikel_id") %>%
-    #   filter(verkaufsdatum >= input$timerange[1] &
-    #            verkaufsdatum <= input$timerange[2] &
-    #            produktgruppen_id %in% selected_prod_group_ids())
+    req(input$timerange[1])
     df <- pool %>% tbl("verkauf_details") %>%
       inner_join(tbl(pool, "verkauf"), by = "rechnungs_nr") %>%
       inner_join(tbl(pool, "artikel"), by = "artikel_id") %>%
       inner_join(tbl(pool, "lieferant"), by = "lieferant_id") %>%
       filter(verkaufsdatum >= input$timerange[1] &
                verkaufsdatum <= input$timerange[2] &
-               produktgruppen_id %in% !!(selected_prod_group_ids())) %>% # c(18, 19, 20)
+               produktgruppen_id %in% !!selected_prod_group_ids()) %>% # c(18, 19, 20)
       group_by(lieferant_id, lieferant_name, artikel_nr) %>%
       summarise(umsatz_stueck = sum(stueckzahl, na.rm = TRUE),
                 umsatz_geld = sum(ges_preis, na.rm = TRUE)) %>%
@@ -331,12 +325,15 @@ function(input, output, session) {
       (pool %>% tbl("artikel") %>%
          filter(lieferant_id == df$lieferant_id[i] && artikel_nr == df$artikel_nr[i]) %>%
          arrange(desc(artikel_id)) %>% select(artikel_name) %>% head(1) %>% collect())$artikel_name)
+    # Select and rename the relevant rows:
     df <- select(
       df,
       Lieferant = lieferant_name, `Art.-Nr.` = artikel_nr,
       Bezeichnung = artikel_name,
       `Umsatz (Stückzahl)` = umsatz_stueck, `Umsatz (Euro)` = umsatz_geld
     )
-    df
+    df$lieferant_id <- NULL
+    
+    DT::datatable(df, rownames = FALSE)
   })
 }
