@@ -6,8 +6,9 @@ library(RMariaDB)
 library(pool)
 library(dplyr)
 library(lubridate)
-library(readr)
 library(DT)
+library(sparkline)
+library(stringr)
 
 dbsetup <- jsonlite::read_json("~/.dbsetup.json")
 
@@ -310,17 +311,50 @@ function(input, output, session) {
   
   output$verkaufstabelle <- DT::renderDataTable({
     req(input$timerange[1])
-    df <- pool %>% tbl("verkauf_details") %>%
+    df_full <- pool %>% tbl("verkauf_details") %>%
       inner_join(tbl(pool, "verkauf"), by = "rechnungs_nr") %>%
       inner_join(tbl(pool, "artikel"), by = "artikel_id") %>%
       inner_join(tbl(pool, "lieferant"), by = "lieferant_id") %>%
-      filter(verkaufsdatum >= input$timerange[1] &
-               verkaufsdatum <= input$timerange[2] &
-               produktgruppen_id %in% !!selected_prod_group_ids()) %>% # c(18, 19, 20)
-      group_by(lieferant_id, lieferant_name, artikel_nr) %>%
+      filter(verkaufsdatum >= input$timerange[1] & # "2019-02-09"
+               verkaufsdatum <= input$timerange[2] & # "2019-02-23"
+               produktgruppen_id %in% !!selected_prod_group_ids()) %>% # 18:20
+      mutate(date = date_format(verkaufsdatum, "%Y%m%d"))
+    df <- df_full %>% group_by(lieferant_id, lieferant_name, artikel_nr) %>%
       summarise(umsatz_stueck = sum(stueckzahl, na.rm = TRUE),
-                umsatz_geld = sum(ges_preis, na.rm = TRUE)) %>%
+                umsatz_geld = sum(ges_preis, na.rm = TRUE)) %>% #, artikel_name = first(artikel_name)) %>%
       arrange(desc(umsatz_stueck)) %>% collect()
+    
+    # date_range <- seq(from = as.Date("2019-02-09"), to = as.Date("2019-02-23"), by = 1)
+    date_range <- seq(from = input$timerange[1], to = input$timerange[2], by = 1) %>%
+      format(format = "%Y%m%d")
+    
+    # Setup for sparklines:
+    # See: https://leonawicz.github.io/HtmlWidgetExamples/ex_dt_sparkline.html
+    df2 <- df_full %>% group_by(lieferant_id, lieferant_name, artikel_nr, date) %>%
+      summarise(umsatz_stueck = sum(stueckzahl, na.rm = TRUE)) %>%
+      arrange(desc(umsatz_stueck)) %>% # collect()
+      group_by(lieferant_id, lieferant_name, artikel_nr) %>%
+      summarise(umsatz_stueck = sum(umsatz_stueck, na.rm = TRUE),
+                umsatz_stueck_verlauf = str_flatten(umsatz_stueck, collapse = ","),
+                umsatz_stueck_dates = str_flatten(date, collapse = ",")) %>% collect()
+    df2$umsatz_stueck_verlauf <- strsplit(df2$umsatz_stueck_verlauf, ",")
+    df2$umsatz_stueck_dates <- strsplit(df2$umsatz_stueck_dates, ",")
+    df2$umsatz_stueck_verlauf <- lapply(seq_len(nrow(df2)), function(i) {
+      this_date <- df2$umsatz_stueck_dates[[i]]
+      this_verlauf <- df2$umsatz_stueck_verlauf[[i]]
+      verlauf_vector <- sapply(date_range, function(d) {
+        index <- which(d == this_date)
+        number <- this_verlauf[index]
+        if (length(number) == 0) number <- 0
+        number
+      })
+      str_flatten(verlauf_vector, collapse = ",")
+    })
+    df2$umsatz_stueck <- NULL
+    df2$umsatz_stueck_dates <- NULL
+    
+    df <- merge(df, df2)
+    # Just one artikel_name for each product:
     df$artikel_name <- sapply(seq_len(nrow(df)), function(i)
       (pool %>% tbl("artikel") %>%
          filter(lieferant_id == df$lieferant_id[i] && artikel_nr == df$artikel_nr[i]) %>%
@@ -330,10 +364,20 @@ function(input, output, session) {
       df,
       Lieferant = lieferant_name, `Art.-Nr.` = artikel_nr,
       Bezeichnung = artikel_name,
-      `Umsatz (Stückzahl)` = umsatz_stueck, `Umsatz (Euro)` = umsatz_geld
+      `Umsatz (Stückzahl)` = umsatz_stueck, `Umsatz (Euro)` = umsatz_geld,
+      Verlauf = umsatz_stueck_verlauf
     )
-    df$lieferant_id <- NULL
+    # df$lieferant_id <- NULL
     
-    DT::datatable(df, rownames = FALSE)
+    js <- "function(data, type, full){ return '<span class=spark>' + data + '</span>' }"
+    colDef <- list(list(targets = 5, render = JS(js)))
+    f <- "function (oSettings, json) { $('.spark:not(:has(canvas))').sparkline('html', { "
+    options <- "type: 'line', lineColor: 'black', fillColor: '#ccc', highlightLineColor: 'orange', highlightSpotColor: 'orange'"
+    cb_line <- JS(paste0(f, options, ", chartRangeMin: ", -1, ", chartRangeMax: ", 
+                         6, " }); }"), collapse = "")
+    
+    d1 <- DT::datatable(df, rownames = FALSE, options = list(columnDefs = colDef, fnDrawCallback = cb_line))
+    d1$dependencies <- append(d1$dependencies, htmlwidgets:::getDependency("sparkline"))
+    d1
   })
 }

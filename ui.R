@@ -198,11 +198,11 @@ material_page(
   material_side_nav_tab_content(
     side_nav_tab_id = "verkauf",
     uiOutput("produktgruppen_div"),
-    # material_row(
-    #   material_column(
-    #     width = 12,
-    #   )
-    # )
-    DT::dataTableOutput("verkaufstabelle")
+    material_row(
+      material_column(
+        width = 12,
+        DT::dataTableOutput("verkaufstabelle")
+      )
+    )
   )
 )
