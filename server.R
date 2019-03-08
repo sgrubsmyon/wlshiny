@@ -319,17 +319,16 @@ function(input, output, session) {
                verkaufsdatum <= input$timerange[2] & # "2019-02-23"
                produktgruppen_id %in% !!selected_prod_group_ids()) %>% # 18:20
       mutate(date = date_format(verkaufsdatum, "%Y%m%d"))
-    df <- df_full %>% group_by(lieferant_id, lieferant_name, artikel_nr) %>%
+    df <- df_full %>% group_by(lieferant_id, lieferant_name, artikel_nr, artikel_name) %>%
       summarise(umsatz_stueck = sum(stueckzahl, na.rm = TRUE),
-                umsatz_geld = sum(ges_preis, na.rm = TRUE)) %>% #, artikel_name = first(artikel_name)) %>%
+                umsatz_geld = sum(ges_preis, na.rm = TRUE)) %>%
+                # artikel_name = first(artikel_name)) %>%
       arrange(desc(umsatz_stueck)) %>% collect()
     
     # date_range <- seq(from = as.Date("2019-02-09"), to = as.Date("2019-02-23"), by = 1)
     date_range <- seq(from = input$timerange[1], to = input$timerange[2], by = 1) %>%
       format(format = "%Y%m%d")
     
-    # Setup for sparklines:
-    # See: https://leonawicz.github.io/HtmlWidgetExamples/ex_dt_sparkline.html
     df2 <- df_full %>% group_by(lieferant_id, lieferant_name, artikel_nr, date) %>%
       summarise(umsatz_stueck = sum(stueckzahl, na.rm = TRUE)) %>%
       arrange(desc(umsatz_stueck)) %>% # collect()
@@ -353,12 +352,12 @@ function(input, output, session) {
     df2$umsatz_stueck <- NULL
     df2$umsatz_stueck_dates <- NULL
     
-    df <- merge(df, df2)
-    # Just one artikel_name for each product:
-    df$artikel_name <- sapply(seq_len(nrow(df)), function(i)
-      (pool %>% tbl("artikel") %>%
-         filter(lieferant_id == df$lieferant_id[i] && artikel_nr == df$artikel_nr[i]) %>%
-         arrange(desc(artikel_id)) %>% select(artikel_name) %>% head(1) %>% collect())$artikel_name)
+    df <- merge(df, df2, sort = FALSE)
+    # # Just one artikel_name for each product:
+    # df$artikel_name <- sapply(seq_len(nrow(df)), function(i)
+    #   (pool %>% tbl("artikel") %>%
+    #      filter(lieferant_id == df$lieferant_id[i] && artikel_nr == df$artikel_nr[i]) %>%
+    #      arrange(desc(artikel_id)) %>% select(artikel_name) %>% head(1) %>% collect())$artikel_name)
     # Select and rename the relevant rows:
     df <- select(
       df,
@@ -369,6 +368,8 @@ function(input, output, session) {
     )
     # df$lieferant_id <- NULL
     
+    # Setup for sparklines:
+    # See: https://leonawicz.github.io/HtmlWidgetExamples/ex_dt_sparkline.html
     js <- "function(data, type, full){ return '<span class=spark>' + data + '</span>' }"
     colDef <- list(list(targets = 5, render = JS(js)))
     f <- "function (oSettings, json) { $('.spark:not(:has(canvas))').sparkline('html', { "
