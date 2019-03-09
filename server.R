@@ -311,6 +311,9 @@ function(input, output, session) {
   
   output$verkaufstabelle <- DT::renderDataTable({
     req(input$timerange[1])
+    ###########################################
+    # The full table with all verkauf details #
+    ###########################################
     df_full <- pool %>% tbl("verkauf_details") %>%
       inner_join(tbl(pool, "verkauf"), by = "rechnungs_nr") %>%
       inner_join(tbl(pool, "artikel"), by = "artikel_id") %>%
@@ -318,7 +321,13 @@ function(input, output, session) {
       filter(verkaufsdatum >= input$timerange[1] & # "2019-02-09"
                verkaufsdatum <= input$timerange[2] & # "2019-02-23"
                produktgruppen_id %in% !!selected_prod_group_ids()) %>% # 18:20
-      mutate(date = date_format(verkaufsdatum, "%Y%m%d"))
+      mutate(day = date_format(verkaufsdatum, "%Y%m%d"),
+             week = date_format(verkaufsdatum, "%Y%u"),
+             month = date_format(verkaufsdatum, "%Y%m"))
+    
+    #########################################################
+    # The main table with the sales summed for each product #
+    #########################################################
     df <- df_full %>% group_by(lieferant_id, lieferant_name, artikel_nr) %>%
       summarise(umsatz_stueck = sum(stueckzahl, na.rm = TRUE),
                 umsatz_geld = sum(ges_preis, na.rm = TRUE)) %>%
@@ -329,23 +338,52 @@ function(input, output, session) {
     # Only one entry (one artikel_name) for each product
     df <- df[!duplicated(df[, c("lieferant_id", "artikel_nr")]), ]
     
-    # date_range <- seq(from = as.Date("2019-02-09"), to = as.Date("2019-02-23"), by = 1) %>% format(format = "%Y%m%d")
-    date_range <- seq(from = input$timerange[1], to = input$timerange[2], by = 1) %>%
-      format(format = "%Y%m%d")
+    ##############################################################
+    # A second table with extra information on the sales trend   # 
+    # for each product, binned in either days or weeks or months #
+    # (for sparklines)                                           #
+    ##############################################################
+    # date_range <- seq(from = as.Date("2019-02-09"), to = as.Date("2019-02-23"), by = 1)
+    date_range <- seq(from = input$timerange[1], to = input$timerange[2], by = 1)
+    date_range_day  <- format(date_range, format = "%Y%m%d")
+    date_range_week <- format(date_range, format = "%Y%W") %>% unique()
+    date_range_month <- format(date_range, format = "%Y%m") %>% unique()
     
-    df2 <- df_full %>% group_by(lieferant_id, lieferant_name, artikel_nr, date) %>%
+    mode <- if (length(date_range_week) < 4) "day" else if (length(date_range_month) < 4) "week" else "month"
+    
+    date_range_used <- switch(mode, day = date_range_day, week = date_range_week, month = date_range_month)
+    df2 <- switch(
+      mode,
+      day = df_full %>% group_by(lieferant_id, lieferant_name, artikel_nr, day),
+      week = df_full %>% group_by(lieferant_id, lieferant_name, artikel_nr, week),
+      month = df_full %>% group_by(lieferant_id, lieferant_name, artikel_nr, month)
+    )
+    df2 <- df2 %>%
       summarise(umsatz_stueck = sum(stueckzahl, na.rm = TRUE)) %>%
-      arrange(desc(umsatz_stueck)) %>% # collect()
-      group_by(lieferant_id, lieferant_name, artikel_nr) %>%
-      summarise(umsatz_stueck = sum(umsatz_stueck, na.rm = TRUE),
-                umsatz_stueck_verlauf = str_flatten(umsatz_stueck, collapse = ","),
-                umsatz_stueck_dates = str_flatten(date, collapse = ",")) %>% collect()
+      arrange(desc(umsatz_stueck)) %>%
+      group_by(lieferant_id, lieferant_name, artikel_nr)
+    df2 <- switch(
+      mode,
+      day = df2 %>%
+        summarise(umsatz_stueck = sum(umsatz_stueck, na.rm = TRUE),
+                  umsatz_stueck_verlauf = str_flatten(umsatz_stueck, collapse = ","),
+                  umsatz_stueck_dates = str_flatten(day, collapse = ",")),
+      week = df2 %>%
+        summarise(umsatz_stueck = sum(umsatz_stueck, na.rm = TRUE),
+                  umsatz_stueck_verlauf = str_flatten(umsatz_stueck, collapse = ","),
+                  umsatz_stueck_dates = str_flatten(week, collapse = ",")),
+      month = df2 %>%
+        summarise(umsatz_stueck = sum(umsatz_stueck, na.rm = TRUE),
+                  umsatz_stueck_verlauf = str_flatten(umsatz_stueck, collapse = ","),
+                  umsatz_stueck_dates = str_flatten(month, collapse = ","))
+    )
+    df2 <- collect(df2)
     df2$umsatz_stueck_verlauf <- strsplit(df2$umsatz_stueck_verlauf, ",")
     df2$umsatz_stueck_dates <- strsplit(df2$umsatz_stueck_dates, ",")
     df2$umsatz_stueck_verlauf <- lapply(seq_len(nrow(df2)), function(i) {
       this_date <- df2$umsatz_stueck_dates[[i]]
       this_verlauf <- df2$umsatz_stueck_verlauf[[i]]
-      verlauf_vector <- sapply(date_range, function(d) {
+      verlauf_vector <- sapply(date_range_used, function(d) {
         index <- which(d == this_date)
         number <- this_verlauf[index]
         if (length(number) == 0) number <- 0
