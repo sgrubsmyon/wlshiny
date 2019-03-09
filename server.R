@@ -319,13 +319,17 @@ function(input, output, session) {
                verkaufsdatum <= input$timerange[2] & # "2019-02-23"
                produktgruppen_id %in% !!selected_prod_group_ids()) %>% # 18:20
       mutate(date = date_format(verkaufsdatum, "%Y%m%d"))
-    df <- df_full %>% group_by(lieferant_id, lieferant_name, artikel_nr, artikel_name) %>%
+    df <- df_full %>% group_by(lieferant_id, lieferant_name, artikel_nr) %>%
       summarise(umsatz_stueck = sum(stueckzahl, na.rm = TRUE),
                 umsatz_geld = sum(ges_preis, na.rm = TRUE)) %>%
-                # artikel_name = first(artikel_name)) %>%
-      arrange(desc(umsatz_stueck)) %>% collect()
+      inner_join(df_full %>% select(lieferant_id, lieferant_name, artikel_nr, artikel_name, verkaufsdatum)) %>%
+      arrange(desc(umsatz_stueck), lieferant_name, artikel_nr, desc(verkaufsdatum)) %>% # desc(verkaufsdatum) for the most recent artikel_name at the top
+      collect()
+    df$verkaufsdatum <- NULL # not needed anymore
+    # Only one entry (one artikel_name) for each product
+    df <- df[!duplicated(df[, c("lieferant_id", "artikel_nr")]), ]
     
-    # date_range <- seq(from = as.Date("2019-02-09"), to = as.Date("2019-02-23"), by = 1)
+    # date_range <- seq(from = as.Date("2019-02-09"), to = as.Date("2019-02-23"), by = 1) %>% format(format = "%Y%m%d")
     date_range <- seq(from = input$timerange[1], to = input$timerange[2], by = 1) %>%
       format(format = "%Y%m%d")
     
