@@ -21,8 +21,9 @@ heute_monatsanfang <- as.Date(paste0(substr(as.character(heute), 1, 8), "01"))
 material_page(
   title = "Weltladen Bonn Kassenauswertung",
   nav_bar_fixed = TRUE,
-  include_fonts = TRUE,
   nav_bar_color = "teal lighten-1",
+  include_fonts = TRUE,
+  include_icons = TRUE,
   material_side_nav(
     fixed = TRUE,
     image_source = "Weltladen_Logo.png",
