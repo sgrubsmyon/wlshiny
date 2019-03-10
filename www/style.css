@@ -1,9 +1,8 @@
-div.shiny-date-range-input > div.input-daterange > input.input-sm {
+.shiny-date-range-input > .input-daterange > .input-sm {
   width: auto;
 }
 
-/*
-div.datepicker-days > table.table-condensed {
-  width: auto;
+.datepicker {
+  position: absolute;
+  background: lightgray;
 }
-*/
