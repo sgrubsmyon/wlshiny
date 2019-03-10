@@ -390,25 +390,11 @@ function(input, output, session) {
         number
       })
       str_flatten(trend_vector, collapse = ",")
-      # spk_chr(unname(trend_vector), type = "bar", width = 100, height = 30,
-      #         barWidth = "10", barSpacing = "5",
-      #         tooltipFormatter = htmlwidgets::JS(sprintf(
-      #           "
-      #           function(sparkline, options, fields) {
-      #             return %s[fields[0].offset] + ': ' + fields[0].value; }
-      #           ", jsonlite::toJSON(date_range_used)
-      #         )),
-      #         tooltipOffsetX = -70, tooltipOffsetY = 20)
     })
     df2$umsatz_stueck <- NULL
     df2$umsatz_stueck_dates <- NULL
     
     df <- merge(df, df2, sort = FALSE)
-    # # Just one artikel_name for each product:
-    # df$artikel_name <- sapply(seq_len(nrow(df)), function(i)
-    #   (pool %>% tbl("artikel") %>%
-    #      filter(lieferant_id == df$lieferant_id[i] && artikel_nr == df$artikel_nr[i]) %>%
-    #      arrange(desc(artikel_id)) %>% select(artikel_name) %>% head(1) %>% collect())$artikel_name)
     # Select and rename the relevant rows:
     df <- select(
       df,
@@ -422,13 +408,12 @@ function(input, output, session) {
     # Setup for sparklines:
     # See: https://leonawicz.github.io/HtmlWidgetExamples/ex_dt_sparkline.html
     # https://www.infoworld.com/article/3318222/how-to-add-sparklines-to-r-tables.html
-    # and: https://stackoverflow.com/questions/43251214/composited-sparkline-in-r-with-dt-and-shiny
+    # https://stackoverflow.com/questions/43251214/composited-sparkline-in-r-with-dt-and-shiny
+    # https://stackoverflow.com/questions/45179410/add-label-to-sparkline-plot-in-datatable/45280432#45280432
+    # https://github.com/htmlwidgets/sparkline/issues/14
+    # https://stackoverflow.com/questions/45179410/add-label-to-sparkline-plot-in-datatable/45280432#45280432
     js <- "function(data, type, full){ return '<span class=spark>' + data + '</span>' }"
     colDef <- list(list(targets = 5, render = htmlwidgets::JS(js)))
-    # f <- "function (oSettings, json) { $('.spark:not(:has(canvas))').sparkline('html', { "
-    # line_options <- "type: 'line', lineColor: 'black', fillColor: '#ccc', highlightLineColor: 'orange', highlightSpotColor: 'orange'"
-    # cb_line <- htmlwidgets::JS(paste0(f, line_options, ", chartRangeMin: ", -1, ", chartRangeMax: ", 
-    #                      6, " }); }"), collapse = "")
     cb_bar <- htmlwidgets::JS(sprintf("
       function (oSettings, json) {
         $('.spark:not(:has(canvas))').sparkline('html', {
@@ -444,14 +429,5 @@ function(input, output, session) {
     d1 <- DT::datatable(df, rownames = FALSE, options = list(columnDefs = colDef, fnDrawCallback = cb_bar))
     d1$dependencies <- append(d1$dependencies, htmlwidgets:::getDependency("sparkline"))
     d1
-    # DT::datatable(df, escape = FALSE, rownames = FALSE, options = list(
-    #   fnDrawCallback = htmlwidgets::JS(
-    #     "
-    #     function() {
-    #       HTMLWidgets.staticRender();
-    #     }
-    #     "
-    #   )
-    # )) %>% spk_add_deps()
   })
 }
