@@ -321,9 +321,9 @@ function(input, output, session) {
       filter(verkaufsdatum >= input$timerange[1] & # "2019-02-09"
                verkaufsdatum <= input$timerange[2] & # "2019-02-23"
                produktgruppen_id %in% !!selected_prod_group_ids()) %>% # 18:20
-      mutate(day = date_format(verkaufsdatum, "%Y%m%d"),
-             week = date_format(verkaufsdatum, "%Y%u"),
-             month = date_format(verkaufsdatum, "%Y%m"))
+      mutate(day = date_format(verkaufsdatum, "%d.%m.%Y"),
+             week = date_format(verkaufsdatum, "KW %u (%Y)"),
+             month = date_format(verkaufsdatum, "%m %Y"))
     
     #########################################################
     # The main table with the sales summed for each product #
@@ -345,11 +345,11 @@ function(input, output, session) {
     ##############################################################
     # date_range <- seq(from = as.Date("2019-02-09"), to = as.Date("2019-02-23"), by = 1)
     date_range <- seq(from = input$timerange[1], to = input$timerange[2], by = 1)
-    date_range_day  <- format(date_range, format = "%Y%m%d")
-    date_range_week <- format(date_range, format = "%Y%W") %>% unique()
-    date_range_month <- format(date_range, format = "%Y%m") %>% unique()
+    date_range_day  <- format(date_range, format = "%d.%m.%Y")
+    date_range_week <- format(date_range, format = "KW %W (%Y)") %>% unique()
+    date_range_month <- format(date_range, format = "%m %Y") %>% unique()
     
-    mode <- if (length(date_range_week) < 4) "day" else if (length(date_range_month) < 4) "week" else "month"
+    mode <- if (length(date_range_week) < 6) "day" else if (length(date_range_month) < 6) "week" else "month"
     
     date_range_used <- switch(mode, day = date_range_day, week = date_range_week, month = date_range_month)
     df2 <- switch(
@@ -366,30 +366,39 @@ function(input, output, session) {
       mode,
       day = df2 %>%
         summarise(umsatz_stueck = sum(umsatz_stueck, na.rm = TRUE),
-                  umsatz_stueck_verlauf = str_flatten(umsatz_stueck, collapse = ","),
+                  umsatz_stueck_trend = str_flatten(umsatz_stueck, collapse = ","),
                   umsatz_stueck_dates = str_flatten(day, collapse = ",")),
       week = df2 %>%
         summarise(umsatz_stueck = sum(umsatz_stueck, na.rm = TRUE),
-                  umsatz_stueck_verlauf = str_flatten(umsatz_stueck, collapse = ","),
+                  umsatz_stueck_trend = str_flatten(umsatz_stueck, collapse = ","),
                   umsatz_stueck_dates = str_flatten(week, collapse = ",")),
       month = df2 %>%
         summarise(umsatz_stueck = sum(umsatz_stueck, na.rm = TRUE),
-                  umsatz_stueck_verlauf = str_flatten(umsatz_stueck, collapse = ","),
+                  umsatz_stueck_trend = str_flatten(umsatz_stueck, collapse = ","),
                   umsatz_stueck_dates = str_flatten(month, collapse = ","))
     )
     df2 <- collect(df2)
-    df2$umsatz_stueck_verlauf <- strsplit(df2$umsatz_stueck_verlauf, ",")
+    df2$umsatz_stueck_trend <- strsplit(df2$umsatz_stueck_trend, ",")
     df2$umsatz_stueck_dates <- strsplit(df2$umsatz_stueck_dates, ",")
-    df2$umsatz_stueck_verlauf <- lapply(seq_len(nrow(df2)), function(i) {
+    df2$umsatz_stueck_trend <- lapply(seq_len(nrow(df2)), function(i) {
       this_date <- df2$umsatz_stueck_dates[[i]]
-      this_verlauf <- df2$umsatz_stueck_verlauf[[i]]
-      verlauf_vector <- sapply(date_range_used, function(d) {
+      this_trend <- df2$umsatz_stueck_trend[[i]]
+      trend_vector <- sapply(date_range_used, function(d) {
         index <- which(d == this_date)
-        number <- this_verlauf[index]
+        number <- this_trend[index]
         if (length(number) == 0) number <- 0
         number
       })
-      str_flatten(verlauf_vector, collapse = ",")
+      # str_flatten(trend_vector, collapse = ",")
+      spk_chr(unname(trend_vector), type = "bar", width = 100, height = 30,
+              barWidth = "10", barSpacing = "5",
+              tooltipFormatter = htmlwidgets::JS(sprintf(
+                "
+                function(sparkline, options, fields) {
+                  return %s[fields[0].offset] + ': ' + fields[0].value; }
+                ", jsonlite::toJSON(date_range_used)
+              )),
+              tooltipOffsetX = -70, tooltipOffsetY = 20)
     })
     df2$umsatz_stueck <- NULL
     df2$umsatz_stueck_dates <- NULL
@@ -406,21 +415,39 @@ function(input, output, session) {
       Lieferant = lieferant_name, `Art.-Nr.` = artikel_nr,
       Bezeichnung = artikel_name,
       `Umsatz (Stückzahl)` = umsatz_stueck, `Umsatz (Euro)` = umsatz_geld,
-      Verlauf = umsatz_stueck_verlauf
+      Trend = umsatz_stueck_trend
     )
     # df$lieferant_id <- NULL
     
     # Setup for sparklines:
     # See: https://leonawicz.github.io/HtmlWidgetExamples/ex_dt_sparkline.html
+    # https://www.infoworld.com/article/3318222/how-to-add-sparklines-to-r-tables.html
+    # and: https://stackoverflow.com/questions/43251214/composited-sparkline-in-r-with-dt-and-shiny
     js <- "function(data, type, full){ return '<span class=spark>' + data + '</span>' }"
-    colDef <- list(list(targets = 5, render = JS(js)))
-    f <- "function (oSettings, json) { $('.spark:not(:has(canvas))').sparkline('html', { "
-    options <- "type: 'line', lineColor: 'black', fillColor: '#ccc', highlightLineColor: 'orange', highlightSpotColor: 'orange'"
-    cb_line <- JS(paste0(f, options, ", chartRangeMin: ", -1, ", chartRangeMax: ", 
-                         6, " }); }"), collapse = "")
+    colDef <- list(list(targets = 5, render = htmlwidgets::JS(js)))
+    # f <- "function (oSettings, json) { $('.spark:not(:has(canvas))').sparkline('html', { "
+    # line_options <- "type: 'line', lineColor: 'black', fillColor: '#ccc', highlightLineColor: 'orange', highlightSpotColor: 'orange'"
+    # cb_line <- htmlwidgets::JS(paste0(f, line_options, ", chartRangeMin: ", -1, ", chartRangeMax: ", 
+    #                      6, " }); }"), collapse = "")
+    cb_bar <- htmlwidgets::JS("
+      function (oSettings, json) {
+        $('.spark:not(:has(canvas))').sparkline('html', {
+          type: 'bar' //, barColor: 'orange', negBarColor: 'purple', highlightColor: 'black'
+        });
+      }
+    ")
     
-    d1 <- DT::datatable(df, rownames = FALSE, options = list(columnDefs = colDef, fnDrawCallback = cb_line))
-    d1$dependencies <- append(d1$dependencies, htmlwidgets:::getDependency("sparkline"))
-    d1
+    # d1 <- DT::datatable(df, rownames = FALSE, options = list(columnDefs = colDef, fnDrawCallback = cb_bar))
+    # d1$dependencies <- append(d1$dependencies, htmlwidgets:::getDependency("sparkline"))
+    # d1
+    DT::datatable(df, escape = FALSE, rownames = FALSE, options = list(
+      fnDrawCallback = htmlwidgets::JS(
+        "
+        function() {
+          HTMLWidgets.staticRender();
+        }
+        "
+      )
+    )) %>% spk_add_deps()
   })
 }
