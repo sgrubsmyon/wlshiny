@@ -389,16 +389,16 @@ function(input, output, session) {
         if (length(number) == 0) number <- 0
         number
       })
-      # str_flatten(trend_vector, collapse = ",")
-      spk_chr(unname(trend_vector), type = "bar", width = 100, height = 30,
-              barWidth = "10", barSpacing = "5",
-              tooltipFormatter = htmlwidgets::JS(sprintf(
-                "
-                function(sparkline, options, fields) {
-                  return %s[fields[0].offset] + ': ' + fields[0].value; }
-                ", jsonlite::toJSON(date_range_used)
-              )),
-              tooltipOffsetX = -70, tooltipOffsetY = 20)
+      str_flatten(trend_vector, collapse = ",")
+      # spk_chr(unname(trend_vector), type = "bar", width = 100, height = 30,
+      #         barWidth = "10", barSpacing = "5",
+      #         tooltipFormatter = htmlwidgets::JS(sprintf(
+      #           "
+      #           function(sparkline, options, fields) {
+      #             return %s[fields[0].offset] + ': ' + fields[0].value; }
+      #           ", jsonlite::toJSON(date_range_used)
+      #         )),
+      #         tooltipOffsetX = -70, tooltipOffsetY = 20)
     })
     df2$umsatz_stueck <- NULL
     df2$umsatz_stueck_dates <- NULL
@@ -429,25 +429,29 @@ function(input, output, session) {
     # line_options <- "type: 'line', lineColor: 'black', fillColor: '#ccc', highlightLineColor: 'orange', highlightSpotColor: 'orange'"
     # cb_line <- htmlwidgets::JS(paste0(f, line_options, ", chartRangeMin: ", -1, ", chartRangeMax: ", 
     #                      6, " }); }"), collapse = "")
-    cb_bar <- htmlwidgets::JS("
+    cb_bar <- htmlwidgets::JS(sprintf("
       function (oSettings, json) {
         $('.spark:not(:has(canvas))').sparkline('html', {
-          type: 'bar' //, barColor: 'orange', negBarColor: 'purple', highlightColor: 'black'
+          type: 'bar', width: 100, height: 30, barWidth: 10, barSpacing: 5,
+          tooltipFormatter: function(sparkline, options, fields) {
+            return %s[fields[0].offset] + ': ' + fields[0].value;
+          },
+          tooltipOffsetX: -70, tooltipOffsetY: 20
         });
       }
-    ")
+    ", jsonlite::toJSON(date_range_used)))
     
-    # d1 <- DT::datatable(df, rownames = FALSE, options = list(columnDefs = colDef, fnDrawCallback = cb_bar))
-    # d1$dependencies <- append(d1$dependencies, htmlwidgets:::getDependency("sparkline"))
-    # d1
-    DT::datatable(df, escape = FALSE, rownames = FALSE, options = list(
-      fnDrawCallback = htmlwidgets::JS(
-        "
-        function() {
-          HTMLWidgets.staticRender();
-        }
-        "
-      )
-    )) %>% spk_add_deps()
+    d1 <- DT::datatable(df, rownames = FALSE, options = list(columnDefs = colDef, fnDrawCallback = cb_bar))
+    d1$dependencies <- append(d1$dependencies, htmlwidgets:::getDependency("sparkline"))
+    d1
+    # DT::datatable(df, escape = FALSE, rownames = FALSE, options = list(
+    #   fnDrawCallback = htmlwidgets::JS(
+    #     "
+    #     function() {
+    #       HTMLWidgets.staticRender();
+    #     }
+    #     "
+    #   )
+    # )) %>% spk_add_deps()
   })
 }
