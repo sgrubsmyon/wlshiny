@@ -400,7 +400,7 @@ function(input, output, session) {
       df,
       Lieferant = lieferant_name, `Art.-Nr.` = artikel_nr,
       Bezeichnung = artikel_name,
-      `Umsatz (Stückzahl)` = umsatz_stueck, `Umsatz (Euro)` = umsatz_geld,
+      `Umsatz (Anzahl)` = umsatz_stueck, `Umsatz (Euro)` = umsatz_geld,
       Trend = umsatz_stueck_trend
     )
     # df$lieferant_id <- NULL
