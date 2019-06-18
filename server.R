@@ -8,7 +8,7 @@ library(dplyr)
 library(lubridate)
 library(DT)
 library(sparkline)
-library(stringr)
+library(stringr) # for str_flatten
 
 dbsetup <- jsonlite::read_json("~/.dbsetup.json")
 
