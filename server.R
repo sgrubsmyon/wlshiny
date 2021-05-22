@@ -5,6 +5,7 @@ library(jsonlite)
 library(RMariaDB)
 library(pool)
 library(dplyr)
+library(dbplyr)
 library(lubridate)
 library(DT)
 library(sparkline)
@@ -87,6 +88,7 @@ function(input, output, session) {
   ## Tageseinnahmen:
   tageseinnahmen <- function(pool, anzahl_tage) {
     df <- pool %>% tbl("abrechnung_tag") %>%
+      inner_join(tbl(pool, "abrechnung_tag_mwst"), by = "id") %>%
       filter(date(zeitpunkt) == !!(heute - anzahl_tage)) %>%
       summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
     parse_betrag(df$brutto)
@@ -132,14 +134,16 @@ function(input, output, session) {
   ## Monatseinnahmen:
   monatseinnahmen <- function(pool, anzahl_monate) {
     df <- pool %>% tbl("abrechnung_monat") %>%
+      inner_join(tbl(pool, "abrechnung_monat_mwst"), by = "id") %>%
       filter(monat == !!(heute_monatsanfang - months(anzahl_monate))) %>%
       summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
     parse_betrag(df$brutto)
   }
   
   monatseinnahmen_live <- function(pool) {
-    # SELECT SUM(mwst_netto) + SUM(mwst_betrag) FROM kasse.abrechnung_tag WHERE YEAR(zeitpunkt) = 2019 AND MONTH(zeitpunkt) = 1;
+    # SELECT SUM(mwst_netto) + SUM(mwst_betrag) FROM kasse.abrechnung_tag INNER JOIN kasse.abrechnung_tag_mwst USING (id) WHERE YEAR(zeitpunkt) = 2019 AND MONTH(zeitpunkt) = 1;
     df <- pool %>% tbl("abrechnung_tag") %>%
+      inner_join(tbl(pool, "abrechnung_tag_mwst"), by = "id") %>%
       filter(zeitpunkt > heute_monatsanfang & zeitpunkt < !!(heute + 1)) %>%
       summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
     parse_betrag(df$brutto) + tageseinnahmen_live(pool)
@@ -147,6 +151,7 @@ function(input, output, session) {
   
   monatseinnahmen_vorjahr_live <- function(pool) {
     df <- pool %>% tbl("abrechnung_tag") %>%
+      inner_join(tbl(pool, "abrechnung_tag_mwst"), by = "id") %>%
       filter(zeitpunkt > !!(heute_monatsanfang - years(1)) &
                zeitpunkt < !!(heute - years(1) + 1)) %>%
       summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
@@ -187,6 +192,7 @@ function(input, output, session) {
   ## Jahreseinnahmen:
   jahreseinnahmen <- function(pool, anzahl_jahre) {
     df <- pool %>% tbl("abrechnung_jahr") %>%
+      inner_join(tbl(pool, "abrechnung_jahr_mwst"), by = "id") %>%
       filter(jahr == (year(heute) - anzahl_jahre)) %>%
       summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
     parse_betrag(df$brutto)
@@ -194,6 +200,7 @@ function(input, output, session) {
   
   jahreseinnahmen_live <- function(pool) {
     df <- pool %>% tbl("abrechnung_monat") %>%
+      inner_join(tbl(pool, "abrechnung_monat_mwst"), by = "id") %>%
       filter(year(monat) == year(heute) & monat < heute_monatsanfang) %>%
       summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
     parse_betrag(df$brutto) + monatseinnahmen_live(pool)
@@ -201,6 +208,7 @@ function(input, output, session) {
   
   jahreseinnahmen_vorjahr_live <- function(pool) {
     df <- pool %>% tbl("abrechnung_monat") %>%
+      inner_join(tbl(pool, "abrechnung_monat_mwst"), by = "id") %>%
       filter(year(monat) == (year(heute) - 1) & monat < !!(heute_monatsanfang - years(1))) %>%
       summarise(brutto = sum(mwst_netto, na.rm = TRUE) + sum(mwst_betrag, na.rm = TRUE)) %>% collect()
     parse_betrag(df$brutto) + monatseinnahmen_vorjahr_live(pool)
