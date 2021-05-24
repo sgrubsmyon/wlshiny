@@ -11,6 +11,7 @@ library(shiny)
 library(shinymaterial)
 library(lubridate)
 library(DT)
+library(plotly)
 
 tagesnamen <- c("Heute", "Gestern", "Vorgestern", "Vorvorgestern")
 heute <- Sys.Date()
@@ -189,10 +190,25 @@ material_page(
     material_tab_content(
       tab_id = "trend",
       h4("Trend"),
-      material_card(
-        depth = 3,
-        tableOutput("tbl"),
-        uiOutput('hide_gear')
+      material_row(
+        material_column(
+          material_card(
+            depth = 3,
+            selectInput("daytrend_year", "Jahr", choices = c(today_year:2016))
+          ),
+          material_card(
+            depth = 3,
+            sliderInput("day_chooser", "Zeitspanne (Tag des Jahres)",
+                        min = 1, max = today_doy,
+                        value = c(today_doy - 14, today_doy))
+          )
+        ),
+        material_column(
+          material_card(
+            depth = 3,
+            plotlyOutput("trendplot_day")
+          )
+        )
       )
     )
   ),

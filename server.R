@@ -10,6 +10,8 @@ library(lubridate)
 library(DT)
 library(sparkline)
 library(stringr) # for str_flatten
+library(ggplot2)
+library(plotly)
 
 dbsetup <- jsonlite::read_json("~/.dbsetup.json")
 
@@ -77,13 +79,6 @@ einnahmen_vergleich <- function(dir, vgl, vgl_name = "Vorwoche") {
 }
 
 function(input, output, session) {
-  heute <- Sys.Date()
-  heute_monatsanfang <- as.Date(paste0(substr(as.character(heute), 1, 8), "01"))
-  
-  output$tbl <- renderTable({
-    pool %>% tbl("verkauf") %>% arrange(desc(rechnungs_nr)) %>% head(10) %>% collect()
-  })
-  
   
   ## Tageseinnahmen:
   tageseinnahmen <- function(pool, anzahl_tage) {
@@ -386,7 +381,7 @@ function(input, output, session) {
                   umsatz_stueck_dates = str_flatten(month, collapse = ","),
                   umsatz_stueck = sum(umsatz_stueck, na.rm = TRUE))
     )
-    df2 <- collect(df2)
+    df2 <- collect(df2) # Info: "Warning: ORDER BY is ignored in subqueries without LIMIT" can probably be ignored (this seems to do what is intended)
     df2$umsatz_stueck_trend <- strsplit(df2$umsatz_stueck_trend, ",")
     df2$umsatz_stueck_dates <- strsplit(df2$umsatz_stueck_dates, ",")
     df2$umsatz_stueck_trend <- lapply(seq_len(nrow(df2)), function(i) {
@@ -438,5 +433,31 @@ function(input, output, session) {
     d1 <- DT::datatable(df, rownames = FALSE, options = list(columnDefs = colDef, fnDrawCallback = cb_bar))
     d1$dependencies <- append(d1$dependencies, htmlwidgets:::getDependency("sparkline"))
     d1
+  })
+  
+  observeEvent(input$daytrend_year, {
+    if (input$daytrend_year == today_year) {
+      updateSliderInput(session = session, inputId = "day_chooser", max = today_doy)
+    } else {
+      updateSliderInput(session = session, inputId = "day_chooser", max = 365)
+    }
+  })
+  
+  output$trendplot_day <- renderPlotly({
+    date_start <- strptime(sprintf("%s-%s", input$daytrend_year, input$day_chooser[1]), "%Y-%j")
+    date_end <- strptime(sprintf("%s-%s", input$daytrend_year, input$day_chooser[2]), "%Y-%j")
+    print(date_start)
+    print(date_end)
+    df <- pool %>% tbl("abrechnung_tag") %>%
+      inner_join(tbl(pool, "abrechnung_tag_mwst"), by = "id") %>%
+      filter(date(zeitpunkt) >= date_start && date(zeitpunkt) <= date_end) %>%
+      mutate(Einnahmen = mwst_netto + mwst_betrag, Datum = date(zeitpunkt)) %>%
+      select(Datum, Einnahmen) %>%
+      group_by(Datum) %>% summarise(Einnahmen = sum(Einnahmen, na.rm = TRUE)) %>%
+      collect()
+    # p <- ggplot(data.frame(x = 1:9, y = (1:9)^3), aes(x, y)) + geom_line()
+    p <- ggplot(df, aes(x = Datum, y = Einnahmen)) + geom_line() +
+      geom_point(color = "blue") + labs(y = "Einnahmen (€)") + ylim(c(0, NA))
+    ggplotly(p)
   })
 }

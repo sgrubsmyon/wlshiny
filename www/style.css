@@ -6,3 +6,8 @@
   position: absolute;
   background: lightgray;
 }
+
+.shiny-material-side-nav-tab-content {
+  margin-left: 10px;
+  margin-right: 10px;
+}
