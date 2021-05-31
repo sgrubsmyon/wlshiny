@@ -467,4 +467,62 @@ function(input, output, session) {
       ggplotly(p)
     }
   })
+  
+  observeEvent(input$monthtrend_year, {
+    if (input$monthtrend_year == today_year) {
+      updateSliderInput(session = session, inputId = "month_chooser", max = today_moy)
+    } else {
+      updateSliderInput(session = session, inputId = "month_chooser", max = 12)
+    }
+  })
+  
+  output$trendplot_month <- renderPlotly({
+    date_start <- strptime(sprintf("%s-%02d-01", input$monthtrend_year, as.numeric(input$month_chooser[1])), "%Y-%m-%d")
+    date_end <- strptime(sprintf("%s-%02d-01", input$monthtrend_year, as.numeric(input$month_chooser[2])), "%Y-%m-%d")
+    df <- pool %>% tbl("abrechnung_monat") %>%
+      inner_join(tbl(pool, "abrechnung_monat_mwst"), by = "id") %>%
+      filter(monat >= date_start && monat <= date_end) %>%
+      mutate(Einnahmen = mwst_netto + mwst_betrag, Monat = monat) %>%
+      select(Monat, Einnahmen) %>%
+      group_by(Monat) %>% summarise(Einnahmen = sum(Einnahmen, na.rm = TRUE)) %>%
+      collect()
+    if (nrow(df) > 0) {
+      # p <- ggplot(data.frame(x = 1:9, y = (1:9)^3), aes(x, y)) + geom_line()
+      p <- ggplot(df, aes(x = Monat, y = Einnahmen)) + geom_line() +
+        geom_point(color = "blue") + labs(y = "Einnahmen (€)") + ylim(c(0, NA))
+      ggplotly(p)
+    } else {
+      p <- ggplot(data.frame()) + geom_point() + xlim(0, 10) + ylim(0, 10) +
+        geom_text(data = data.frame(
+          x = 5, y = 5, label = "Keine Daten im ausgewählten Zeitraum gefunden."
+        ), mapping = aes(x = x, y = y, label = label)) +
+        labs(x = "Monat", y = "Einnahmen (€)")
+      ggplotly(p)
+    }
+  })
+  
+  output$trendplot_year <- renderPlotly({
+    year_start <- as.numeric(input$year_chooser[1])
+    year_end <- as.numeric(input$year_chooser[2])
+    df <- pool %>% tbl("abrechnung_jahr") %>%
+      inner_join(tbl(pool, "abrechnung_jahr_mwst"), by = "id") %>%
+      filter(jahr >= year_start && jahr <= year_end) %>%
+      mutate(Einnahmen = mwst_netto + mwst_betrag, Jahr = jahr) %>%
+      select(Jahr, Einnahmen) %>%
+      group_by(Jahr) %>% summarise(Einnahmen = sum(Einnahmen, na.rm = TRUE)) %>%
+      collect()
+    if (nrow(df) > 0) {
+      # p <- ggplot(data.frame(x = 1:9, y = (1:9)^3), aes(x, y)) + geom_line()
+      p <- ggplot(df, aes(x = Jahr, y = Einnahmen)) + geom_line() +
+        geom_point(color = "blue") + labs(y = "Einnahmen (€)") + ylim(c(0, NA))
+      ggplotly(p)
+    } else {
+      p <- ggplot(data.frame()) + geom_point() + xlim(0, 10) + ylim(0, 10) +
+        geom_text(data = data.frame(
+          x = 5, y = 5, label = "Keine Daten im ausgewählten Zeitraum gefunden."
+        ), mapping = aes(x = x, y = y, label = label)) +
+        labs(x = "Jahr", y = "Einnahmen (€)")
+      ggplotly(p)
+    }
+  })
 }

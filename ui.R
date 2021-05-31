@@ -194,19 +194,55 @@ material_page(
         material_column(
           material_card(
             depth = 3,
-            selectInput("daytrend_year", "Jahr", choices = c(today_year:2016))
+            selectInput("daytrend_year", "Jahr", choices = c(today_year:min_year))
           ),
           material_card(
             depth = 3,
-            sliderInput("day_chooser", "Zeitspanne (Tag des Jahres)",
-                        min = 1, max = today_doy,
-                        value = c(today_doy - 14, today_doy))
+            sliderInput("day_chooser", "Zeitspanne (Tage des Jahres)",
+                        min = 1, max = today_doy - 1,
+                        value = c(today_doy - 14, today_doy - 1))
           )
         ),
         material_column(
           material_card(
             depth = 3,
             plotlyOutput("trendplot_day")
+          )
+        )
+      ),
+      material_row(
+        material_column(
+          material_card(
+            depth = 3,
+            selectInput("monthtrend_year", "Jahr", choices = c(today_year:min_year))
+          ),
+          material_card(
+            depth = 3,
+            sliderInput("month_chooser", "Zeitspanne (Monate)",
+                        min = 1, max = today_moy - 1,
+                        value = c(1, today_moy - 1))
+          )
+        ),
+        material_column(
+          material_card(
+            depth = 3,
+            plotlyOutput("trendplot_month")
+          )
+        )
+      ),
+      material_row(
+        material_column(
+          material_card(
+            depth = 3,
+            sliderInput("year_chooser", "Zeitspanne (Jahre)",
+                        min = min_year, max = today_year - 1,
+                        value = c(min_year, today_year - 1))
+          )
+        ),
+        material_column(
+          material_card(
+            depth = 3,
+            plotlyOutput("trendplot_year")
           )
         )
       )
