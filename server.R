@@ -338,6 +338,13 @@ function(input, output, session) {
       inner_join(df_full %>% select(lieferant_id, lieferant_name, artikel_nr, artikel_name, verkaufsdatum)) %>%
       arrange(desc(umsatz_stueck), lieferant_name, artikel_nr, desc(verkaufsdatum)) %>% # desc(verkaufsdatum) for the most recent artikel_name at the top
       collect()
+    ges_umsatz_stueck <- sum(df$umsatz_stueck)
+    ges_umsatz_geld <- sum(df$umsatz_geld)
+    df <- mutate(
+      df,
+      prozent_umsatz_stueck = signif(100 * umsatz_stueck / ges_umsatz_stueck, digits = 2),
+      prozent_umsatz_geld = signif(100 * umsatz_geld / ges_umsatz_geld, digits = 2)
+    )
     df$verkaufsdatum <- NULL # not needed anymore
     # Only one entry (one artikel_name) for each product
     df <- df[!duplicated(df[, c("lieferant_id", "artikel_nr")]), ]
@@ -404,7 +411,9 @@ function(input, output, session) {
       df,
       Lieferant = lieferant_name, `Art.-Nr.` = artikel_nr,
       Bezeichnung = artikel_name,
-      `Umsatz (Anzahl)` = umsatz_stueck, `Umsatz (Euro)` = umsatz_geld,
+      `Umsatz (Stück)` = umsatz_stueck, `Umsatz (Euro)` = umsatz_geld,
+      `% Umsatz (Stück)` = prozent_umsatz_stueck,
+      `% Umsatz (Euro)` = prozent_umsatz_geld,
       Trend = umsatz_stueck_trend
     )
     # df$lieferant_id <- NULL
@@ -417,7 +426,7 @@ function(input, output, session) {
     # https://github.com/htmlwidgets/sparkline/issues/14
     # https://stackoverflow.com/questions/45179410/add-label-to-sparkline-plot-in-datatable/45280432#45280432
     js <- "function(data, type, full){ return '<span class=spark>' + data + '</span>' }"
-    colDef <- list(list(targets = 5, render = htmlwidgets::JS(js)))
+    colDef <- list(list(targets = 7, render = htmlwidgets::JS(js)))
     cb_bar <- htmlwidgets::JS(sprintf("
       function (oSettings, json) {
         $('.spark:not(:has(canvas))').sparkline('html', {
