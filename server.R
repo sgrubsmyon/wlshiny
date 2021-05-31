@@ -446,8 +446,6 @@ function(input, output, session) {
   output$trendplot_day <- renderPlotly({
     date_start <- strptime(sprintf("%s-%s", input$daytrend_year, input$day_chooser[1]), "%Y-%j")
     date_end <- strptime(sprintf("%s-%s", input$daytrend_year, input$day_chooser[2]), "%Y-%j")
-    print(date_start)
-    print(date_end)
     df <- pool %>% tbl("abrechnung_tag") %>%
       inner_join(tbl(pool, "abrechnung_tag_mwst"), by = "id") %>%
       filter(date(zeitpunkt) >= date_start && date(zeitpunkt) <= date_end) %>%
@@ -455,9 +453,18 @@ function(input, output, session) {
       select(Datum, Einnahmen) %>%
       group_by(Datum) %>% summarise(Einnahmen = sum(Einnahmen, na.rm = TRUE)) %>%
       collect()
-    # p <- ggplot(data.frame(x = 1:9, y = (1:9)^3), aes(x, y)) + geom_line()
-    p <- ggplot(df, aes(x = Datum, y = Einnahmen)) + geom_line() +
-      geom_point(color = "blue") + labs(y = "Einnahmen (€)") + ylim(c(0, NA))
-    ggplotly(p)
+    if (nrow(df) > 0) {
+      # p <- ggplot(data.frame(x = 1:9, y = (1:9)^3), aes(x, y)) + geom_line()
+      p <- ggplot(df, aes(x = Datum, y = Einnahmen)) + geom_line() +
+        geom_point(color = "blue") + labs(y = "Einnahmen (€)") + ylim(c(0, NA))
+      ggplotly(p)
+    } else {
+      p <- ggplot(data.frame()) + geom_point() + xlim(0, 10) + ylim(0, 10) +
+        geom_text(data = data.frame(
+          x = 5, y = 5, label = "Keine Daten im ausgewählten Zeitraum gefunden."
+        ), mapping = aes(x = x, y = y, label = label)) +
+        labs(x = "Datum", y = "Einnahmen (€)")
+      ggplotly(p)
+    }
   })
 }
