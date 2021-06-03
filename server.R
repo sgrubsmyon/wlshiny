@@ -34,8 +34,27 @@ onStop(function() {
 })
 
 produktgruppen <- {
-  p <- pool %>% tbl("produktgruppe") %>% filter(!is.na(toplevel_id) && aktiv) %>%
-    select(produktgruppen_id, toplevel_id, sub_id, subsub_id, produktgruppen_name) %>% collect()
+  # Kunsthandwerk:
+  p_khw <- pool %>% tbl("produktgruppe") %>%
+    filter(!is.na(toplevel_id) && aktiv && toplevel_id == 4) %>%
+    select(produktgruppen_id, toplevel_id, sub_id, subsub_id, produktgruppen_name) %>%
+    arrange(toplevel_id, sub_id, subsub_id) %>% collect()
+  # Lebensmittel und Getränke:
+  p_lm <- pool %>% tbl("produktgruppe") %>%
+    filter(!is.na(toplevel_id) && aktiv && toplevel_id >= 2 && toplevel_id <= 3) %>%
+    select(produktgruppen_id, toplevel_id, sub_id, subsub_id, produktgruppen_name) %>%
+    arrange(toplevel_id, sub_id, subsub_id) %>% collect()
+  # Ergänzungsprodukte:
+  p_erg <- pool %>% tbl("produktgruppe") %>%
+    filter(!is.na(toplevel_id) && aktiv && toplevel_id == 5) %>%
+    select(produktgruppen_id, toplevel_id, sub_id, subsub_id, produktgruppen_name) %>%
+    arrange(toplevel_id, sub_id, subsub_id) %>% collect()
+  # Sonstiges:
+  p_sonst <- pool %>% tbl("produktgruppe") %>%
+    filter(!is.na(toplevel_id) && aktiv && toplevel_id == 1) %>%
+    select(produktgruppen_id, toplevel_id, sub_id, subsub_id, produktgruppen_name) %>%
+    arrange(toplevel_id, sub_id, subsub_id) %>% collect()
+  p <- rbind(p_khw, p_lm, p_erg, p_sonst)
   sub_fill <- sapply(p$sub_id, function(sid) if (!is.na(sid)) " " else "")
   subsub_fill <- sapply(p$subsub_id, function(sid) if (!is.na(sid)) " " else "")
   ps <- as.list(p$produktgruppen_id)
