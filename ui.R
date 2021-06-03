@@ -32,8 +32,8 @@ material_page(
     includeCSS("www/style.css"),
     material_side_nav_tabs(
       side_nav_tabs = c(
-        "Übersicht Einnahmen" = "einnahmen",
-        "Verkaufsstatistik" = "verkauf"
+        "Verkaufsstatistik" = "verkauf",
+        "Übersicht Einnahmen" = "einnahmen"
       ),
       icons = c("dashboard", "dehaze")
     )
@@ -90,6 +90,16 @@ material_page(
     #                     color = "#9c27b0")
     #   )
     # )
+  ),
+  material_side_nav_tab_content(
+    side_nav_tab_id = "verkauf",
+    uiOutput("produktgruppen_div"),
+    material_row(
+      material_column(
+        width = 12,
+        DT::dataTableOutput("verkaufstabelle")
+      )
+    )
   ),
   material_side_nav_tab_content(
     side_nav_tab_id = "einnahmen",
@@ -245,16 +255,6 @@ material_page(
             plotlyOutput("trendplot_year")
           )
         )
-      )
-    )
-  ),
-  material_side_nav_tab_content(
-    side_nav_tab_id = "verkauf",
-    uiOutput("produktgruppen_div"),
-    material_row(
-      material_column(
-        width = 12,
-        DT::dataTableOutput("verkaufstabelle")
       )
     )
   )
