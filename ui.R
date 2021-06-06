@@ -200,6 +200,7 @@ material_page(
     material_tab_content(
       tab_id = "trend",
       h4("Trend"),
+      h5("Trend Tageseinnahmen"),
       material_row(
         material_column(
           material_card(
@@ -220,6 +221,7 @@ material_page(
           )
         )
       ),
+      h5("Trend Monatseinnahmen"),
       material_row(
         material_column(
           material_card(
@@ -240,6 +242,7 @@ material_page(
           )
         )
       ),
+      h5("Trend Jahreseinnahmen"),
       material_row(
         material_column(
           material_card(

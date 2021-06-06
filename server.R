@@ -540,7 +540,6 @@ function(input, output, session) {
       group_by(Jahr) %>% summarise(Einnahmen = sum(Einnahmen, na.rm = TRUE)) %>%
       collect()
     if (nrow(df) > 0) {
-      # p <- ggplot(data.frame(x = 1:9, y = (1:9)^3), aes(x, y)) + geom_line()
       p <- ggplot(df, aes(x = Jahr, y = Einnahmen)) + geom_line() +
         geom_point(color = "blue") + labs(y = "Einnahmen (€)") + ylim(c(0, NA))
       ggplotly(p)
