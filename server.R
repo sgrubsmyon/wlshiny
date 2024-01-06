@@ -392,12 +392,13 @@ function(input, output, session) {
       summarise(umsatz_stueck = sum(stueckzahl, na.rm = TRUE)) %>%
       arrange(desc(umsatz_stueck)) %>%
       group_by(lieferant_id, lieferant_name, artikel_nr)
+    # browser()
     df2 <- switch(
       mode,
       day = df2 %>%
         summarise(umsatz_stueck_trend = str_flatten(umsatz_stueck, collapse = ","),
                   umsatz_stueck_dates = str_flatten(day, collapse = ","),
-                  umsatz_stueck = sum(umsatz_stueck, na.rm = TRUE)),
+                  umsatz_stueck = sum(umsatz_stueck, na.rm = TRUE)), # !!!!!!!!!!!!!!!!!!!
       week = df2 %>%
         summarise(umsatz_stueck_trend = str_flatten(umsatz_stueck, collapse = ","),
                   umsatz_stueck_dates = str_flatten(week, collapse = ","),
